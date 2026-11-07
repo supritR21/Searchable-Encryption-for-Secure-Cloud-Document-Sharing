@@ -54,8 +54,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Try fetching profile
     api
       .get<UserProfile>('/auth/me')
-      .then((res) => {
+      .then(async (res) => {
         setUser(res.data);
+        if (res.data.publicKeySpki) {
+          try {
+            const pub = await importPublicKey(base64ToUint8Array(res.data.publicKeySpki));
+            setPublicKey(pub);
+          } catch (e) {
+            console.warn('Failed to import public key on session restore:', e);
+          }
+        }
       })
       .catch(() => {
         api.setToken(null);

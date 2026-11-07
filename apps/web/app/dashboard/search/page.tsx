@@ -56,7 +56,14 @@ export default function SearchPage() {
           setSelectedWsId(res.data[0].id);
         }
       } catch (err) {
-        setError('Failed to load workspaces');
+        const msg = (err as Error).message || '';
+        if (msg.includes('fetch') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+          setError(
+            'Cannot connect to the CipherShare API server at http://localhost:4000. Please ensure "npm run dev:api" is running in your terminal.'
+          );
+        } else {
+          setError(`Failed to load workspaces: ${msg}`);
+        }
       }
     }
     fetchWorkspaces();

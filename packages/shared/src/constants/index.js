@@ -1,7 +1,4 @@
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-exports.CRYPTO_CONSTANTS = void 0;
-exports.CRYPTO_CONSTANTS = {
+export const CRYPTO_CONSTANTS = {
     // RSA-OAEP Key Specification
     RSA: {
         ALGORITHM: 'RSA-OAEP',

@@ -49,7 +49,14 @@ export default function WorkspacesPage() {
         setSelectedWs(res.data[0]);
       }
     } catch (err) {
-      setError('Failed to fetch workspaces');
+      const msg = (err as Error).message || '';
+      if (msg.includes('fetch') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+        setError(
+          'Cannot connect to the CipherShare API server at http://localhost:4000. Please ensure "npm run dev:api" is running in your terminal.'
+        );
+      } else {
+        setError(`Failed to fetch workspaces: ${msg}`);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -74,16 +81,30 @@ export default function WorkspacesPage() {
 
   const handleCreateWorkspace = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newWsName.trim() || !publicKey) return;
+    setError(null);
+
+    if (!newWsName.trim()) {
+      setError('Please enter a workspace name');
+      return;
+    }
 
     setIsCreating(true);
-    setError(null);
     try {
+      // Resolve public key from context or user profile
+      let activePubKey = publicKey;
+      if (!activePubKey && user?.publicKeySpki) {
+        activePubKey = await importPublicKey(base64ToUint8Array(user.publicKeySpki));
+      }
+
+      if (!activePubKey) {
+        throw new Error('Public key is not loaded in this session. Please log out and log back in.');
+      }
+
       // 1. Generate random 32-byte workspace search key
       const wsSearchKey = generateRandomBytes(32);
 
       // 2. Wrap workspace search key with owner's public key
-      const wrappedKey = await wrapKeyForRecipient(publicKey, wsSearchKey);
+      const wrappedKey = await wrapKeyForRecipient(activePubKey, wsSearchKey);
 
       // 3. Encrypt workspace name with temporary AES key
       const tempKey = generateRandomBytes(32);
@@ -115,7 +136,18 @@ export default function WorkspacesPage() {
 
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedWs || !privateKey || !memberEmail.trim()) return;
+    if (!selectedWs) {
+      setAddStatus('No workspace selected');
+      return;
+    }
+    if (!memberEmail.trim()) {
+      setAddStatus('Please enter an email address');
+      return;
+    }
+    if (!privateKey) {
+      setAddStatus('Your private key is locked. Please log out and log back in to unlock your key session.');
+      return;
+    }
 
     setAddStatus('Searching user by email...');
     try {

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../../../lib/auth/auth-context';
 import { api } from '../../../lib/api/client';
 import {
@@ -69,7 +70,14 @@ export default function DocumentsPage() {
           setSelectedWsId(res.data[0].id);
         }
       } catch (err) {
-        setError('Failed to load workspaces');
+        const msg = (err as Error).message || '';
+        if (msg.includes('fetch') || msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+          setError(
+            'Cannot connect to the CipherShare API server at http://localhost:4000. Please ensure "npm run dev:api" is running in your terminal.'
+          );
+        } else {
+          setError(`Failed to load workspaces: ${msg}`);
+        }
       }
     }
     fetchWorkspaces();
@@ -145,7 +153,19 @@ export default function DocumentsPage() {
   // Handle local encryption and upload
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !selectedWsId || !privateKey || !publicKey) return;
+    if (!file) return;
+
+    if (!selectedWsId) {
+      setError('Please create or select a workspace first! Documents must be encrypted under a workspace search key.');
+      e.target.value = '';
+      return;
+    }
+
+    if (!privateKey || !publicKey) {
+      setError('Your cryptographic session is not unlocked. Please log out and log back in to unlock your keys.');
+      e.target.value = '';
+      return;
+    }
 
     setIsUploading(true);
     setUploadStatus('1/5 Extracting document text locally...');
@@ -352,6 +372,24 @@ export default function DocumentsPage() {
         <div className="flex items-center space-x-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
           <AlertCircle className="h-4 w-4 flex-shrink-0" />
           <span>{error}</span>
+        </div>
+      )}
+
+      {workspaces.length === 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-6 text-center space-y-3">
+          <FolderLock className="mx-auto h-8 w-8 text-blue-600" />
+          <h3 className="text-base font-bold text-blue-950">No Workspace Created Yet</h3>
+          <p className="text-xs text-blue-800 max-w-md mx-auto leading-relaxed">
+            CipherShare requires a workspace to establish and distribute a 32-byte search key before documents can be indexed and encrypted.
+          </p>
+          <div>
+            <Link
+              href="/dashboard/workspaces"
+              className="inline-flex items-center space-x-2 rounded-md bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+            >
+              <span>Create Your First Workspace</span>
+            </Link>
+          </div>
         </div>
       )}
 
