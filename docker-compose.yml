@@ -1,0 +1,22 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ciphershare-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ciphershare
+      POSTGRES_PASSWORD: ciphershare_secret_password
+      POSTGRES_DB: ciphershare_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ciphershare -d ciphershare_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local

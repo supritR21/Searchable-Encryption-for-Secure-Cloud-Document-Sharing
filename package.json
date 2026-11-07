@@ -1,0 +1,29 @@
+{
+  "name": "ciphershare-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CipherShare — Secure Searchable Cloud Document Sharing",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "dev:api": "npm run dev --workspace=@ciphershare/api",
+    "dev:web": "npm run dev --workspace=@ciphershare/web",
+    "db:generate": "npm run db:generate --workspace=@ciphershare/api",
+    "db:migrate": "npm run db:migrate --workspace=@ciphershare/api",
+    "db:studio": "npm run db:studio --workspace=@ciphershare/api"
+  },
+  "keywords": [
+    "searchable-encryption",
+    "applied-cryptography",
+    "aes-gcm",
+    "hmac-sha256",
+    "rsa-oaep",
+    "argon2id"
+  ],
+  "author": "",
+  "license": "MIT"
+}

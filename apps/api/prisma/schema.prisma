@@ -1,0 +1,155 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  MEMBER
+}
+
+enum DocumentPermission {
+  READ
+  OWNER
+}
+
+model User {
+  id                  String             @id @default(uuid()) @db.Uuid
+  email               String             @unique @db.VarChar(255)
+  passwordHash        String             @db.VarChar(255)
+  publicKeySpki       Bytes              // Stored as BYTEA
+  encryptedPrivateKey Bytes              // Stored as BYTEA
+  privateKeySalt      Bytes              // Stored as BYTEA
+  privateKeyNonce     Bytes              // Stored as BYTEA
+  privateKeyKdfParams Json
+  publicKeyAlgorithm  String             @default("RSA-OAEP-3072") @db.VarChar(50)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  ownedWorkspaces     Workspace[]        @relation("WorkspaceOwner")
+  memberships         WorkspaceMember[]
+  ownedDocuments      Document[]         @relation("DocumentOwner")
+  documentAccess      DocumentAccess[]   @relation("UserDocumentAccess")
+  grantedAccess       DocumentAccess[]   @relation("GrantedByAccess")
+  auditLogs           AuditLog[]
+
+  @@map("users")
+}
+
+model Workspace {
+  id            String            @id @default(uuid()) @db.Uuid
+  ownerId       String            @db.Uuid
+  encryptedName Bytes             // Stored as BYTEA
+  nameNonce     Bytes             // Stored as BYTEA
+  keyVersion    Int               @default(1)
+  createdAt     DateTime          @default(now())
+
+  owner         User              @relation("WorkspaceOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  members       WorkspaceMember[]
+  documents     Document[]
+  searchTokens  SearchIndex[]
+  auditLogs     AuditLog[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id               String        @id @default(uuid()) @db.Uuid
+  workspaceId      String        @db.Uuid
+  userId           String        @db.Uuid
+  role             WorkspaceRole @default(MEMBER)
+  wrappedSearchKey Bytes         // Stored as BYTEA
+  keyVersion       Int           @default(1)
+  joinedAt         DateTime      @default(now())
+  revokedAt        DateTime?
+
+  workspace        Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Document {
+  id                String           @id @default(uuid()) @db.Uuid
+  workspaceId       String           @db.Uuid
+  ownerId           String           @db.Uuid
+  encryptedFile     Bytes            // Stored as BYTEA - up to 10MB
+  fileNonce         Bytes            // Stored as BYTEA - 12 bytes
+  encryptedMetadata Bytes            // Stored as BYTEA
+  metadataNonce     Bytes            // Stored as BYTEA - 12 bytes
+  cryptoVersion     Int              @default(1)
+  keyVersion        Int              @default(1)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  deletedAt         DateTime?
+
+  workspace         Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  owner             User             @relation("DocumentOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  accessList        DocumentAccess[]
+  searchTokens      SearchIndex[]
+  auditLogs         AuditLog[]
+
+  @@index([workspaceId])
+  @@index([ownerId])
+  @@map("documents")
+}
+
+model SearchIndex {
+  id          String    @id @default(uuid()) @db.Uuid
+  workspaceId String    @db.Uuid
+  documentId  String    @db.Uuid
+  searchToken Bytes     // Stored as BYTEA - 32 bytes HMAC output
+  keyVersion  Int       @default(1)
+  createdAt   DateTime  @default(now())
+
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, documentId, keyVersion, searchToken])
+  @@index([workspaceId, keyVersion, searchToken])
+  @@index([documentId])
+  @@map("search_index")
+}
+
+model DocumentAccess {
+  id           String             @id @default(uuid()) @db.Uuid
+  documentId   String             @db.Uuid
+  userId       String             @db.Uuid
+  encryptedDek Bytes              // Stored as BYTEA - DEK wrapped with user's RSA-OAEP public key
+  permission   DocumentPermission @default(READ)
+  grantedBy    String             @db.Uuid
+  createdAt    DateTime           @default(now())
+  revokedAt    DateTime?
+
+  document     Document           @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user         User               @relation("UserDocumentAccess", fields: [userId], references: [id], onDelete: Cascade)
+  granter      User               @relation("GrantedByAccess", fields: [grantedBy], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId])
+  @@index([userId, revokedAt])
+  @@map("document_access")
+}
+
+model AuditLog {
+  id          String     @id @default(uuid()) @db.Uuid
+  actorId     String     @db.Uuid
+  action      String     @db.VarChar(100)
+  documentId  String?    @db.Uuid
+  workspaceId String?    @db.Uuid
+  createdAt   DateTime   @default(now())
+  details     Json       @default("{}")
+
+  actor       User       @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  document    Document?  @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([actorId])
+  @@index([workspaceId])
+  @@index([documentId])
+  @@map("audit_logs")
+}
